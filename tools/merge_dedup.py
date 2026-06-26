@@ -1,5 +1,5 @@
 """
-merge_dedup.py - 合并 arXiv 保底文献与 OpenAlex 精品文献并去重（Phase 3 第三层）
+merge_dedup.py - 合并 arXiv 与 OpenAlex 文献并去重（Phase 3 第三层）
 
 去重规则详见 references/filter_rules.md：
 - 优先按 DOI 去重（非空且相同视为重复）
@@ -68,7 +68,7 @@ def merge_dedup(arxiv_papers: list[dict], openalex_papers: list[dict]) -> tuple[
         if title:
             openalex_by_title[title] = i
 
-    result = list(openalex_papers)  # OpenAlex 精品文献全部保留
+    result = list(openalex_papers)  # OpenAlex 文献全部保留
     both_count = 0
     arxiv_unique_count = 0
 

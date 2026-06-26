@@ -92,6 +92,17 @@ def _fmt_tier(tier: str | None) -> str:
     return tier or "-"
 
 
+def _fmt_url(paper: dict) -> str:
+    """构建文章链接"""
+    doi = paper.get("doi")
+    if doi:
+        return f"https://doi.org/{_fmt_doi(doi)}"
+    pdf_url = paper.get("pdf_url")
+    if pdf_url:
+        return pdf_url
+    return "-"
+
+
 def _load_papers(path: str) -> list[dict]:
     """加载论文 JSON 文件，兼容 {papers:[...]} 和 [...] 两种格式"""
     with open(path, "r", encoding="utf-8") as f:
@@ -103,11 +114,14 @@ def _load_papers(path: str) -> list[dict]:
     raise ValueError(f"无法解析 {path}：期望论文数组或含 papers 字段的对象")
 
 
-def _suggest_filename(topic: str, date_str: str, suffix: str) -> str:
-    """生成文件名"""
+def _suggest_filename(topic: str, date_str: str, fmt: str = "md") -> str:
+    """根据格式生成对应的文件名"""
     safe_topic = "".join(c if c.isalnum() or c in " _-" else "_" for c in topic)
     safe_topic = safe_topic.strip().replace(" ", "_")[:60]
-    return f"文献综述报告_{safe_topic}_{date_str}{suffix}"
+    if fmt == "excel":
+        return f"{safe_topic}文献信息表_{date_str}.xlsx"
+    ext = ".docx" if fmt == "word" else ".md"
+    return f"{safe_topic}文献综述_{date_str}{ext}"
 
 
 # ─────────────────── Markdown 输出 ───────────────────
@@ -125,7 +139,7 @@ def generate_markdown(papers: list[dict], topic: str, date_str: str,
     lines.append(f"# {topic} 文献综述\n")
     lines.append(f"> 检索时间：{date_str}")
     lines.append(f"> 数据来源：arXiv + OpenAlex")
-    lines.append(f"> 文献总数：{total} 篇（精品 {premium} 篇 / 保底 {baseline} 篇）")
+    lines.append(f"> 文献总数：{total} 篇（符合等级要求 {premium} 篇 / 其他 {baseline} 篇）")
     lines.append("")
     lines.append("---\n")
 
@@ -138,26 +152,10 @@ def generate_markdown(papers: list[dict], topic: str, date_str: str,
     lines.append("---\n")
 
     # 文献表格
-    lines.append("## 二、文献列表\n")
-    lines.append("| 序号 | 标题 | 作者 | 年份 | 来源 | DOI | 期刊/会议 | 引用量 | 符合等级 | 等级 |")
-    lines.append("|------|------|------|------|------|-----|-----------|--------|----------|------|")
-    for i, p in enumerate(papers, 1):
-        title = p.get("title", "-")
-        authors = _fmt_authors(p.get("authors"))
-        year = p.get("year", "-")
-        source = p.get("source", "-")
-        doi = _fmt_doi(p.get("doi"))
-        venue = _fmt_venue(p)
-        citations = _fmt_citations(p.get("cited_by_count"))
-        compliant = _fmt_compliant(p.get("compliant"))
-        tier = _fmt_tier(p.get("tier"))
-        lines.append(f"| {i} | {title} | {authors} | {year} | {source} | {doi} | {venue} | {citations} | {compliant} | {tier} |")
 
-    lines.append("")
-    lines.append("---\n")
 
     # GB/T 7714 参考文献
-    lines.append("## 三、参考文献\n")
+    lines.append("## 二、参考文献\n")
     for i, p in enumerate(papers, 1):
         authors = _fmt_authors(p.get("authors"))
         title = p.get("title", "")
@@ -194,7 +192,7 @@ def generate_excel(papers: list[dict], topic: str, date_str: str, output_dir: st
     ws.title = "文献摘要"
 
     # 列头
-    headers = ["序号", "标题", "作者", "年份", "来源", "DOI", "期刊/会议",
+    headers = ["序号", "标题", "作者", "年份", "来源", "DOI", "文章链接", "期刊/会议",
                "引用量", "等级", "符合等级要求", "摘要"]
     header_font = Font(bold=True, size=11)
     header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
@@ -222,6 +220,7 @@ def generate_excel(papers: list[dict], topic: str, date_str: str, output_dir: st
             p.get("year", ""),
             p.get("source", ""),
             _fmt_doi(p.get("doi")),
+            _fmt_url(p),
             _fmt_venue(p),
             _fmt_citations(p.get("cited_by_count")),
             _fmt_tier(p.get("tier")),
@@ -234,11 +233,11 @@ def generate_excel(papers: list[dict], topic: str, date_str: str, output_dir: st
             cell.border = thin_border
 
     # 列宽
-    col_widths = [6, 40, 20, 8, 12, 30, 25, 10, 18, 12, 60]
+    col_widths = [6, 40, 20, 8, 12, 30, 35, 25, 10, 18, 12, 60]
     for col, w in enumerate(col_widths, 1):
         ws.column_dimensions[chr(64 + col)].width = w
 
-    filename = _suggest_filename(topic, date_str, ".xlsx")
+    filename = _suggest_filename(topic, date_str, "excel")
     filepath = os.path.join(output_dir, filename)
     wb.save(filepath)
     return filepath
@@ -257,7 +256,7 @@ def generate_word(papers: list[dict], topic: str, date_str: str,
     doc = Document()
 
     # 标题
-    title = doc.add_heading(f"{topic} 文献综述", level=0)
+    title = doc.add_heading(f"{topic} 文献综述", level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # 元信息
@@ -274,11 +273,9 @@ def generate_word(papers: list[dict], topic: str, date_str: str,
     premium = sum(1 for p in papers if p.get("compliant"))
     baseline = total - premium
     meta.add_run("\n")
-    run = meta.add_run(f"文献总数：{total} 篇（精品 {premium} 篇 / 保底 {baseline} 篇）")
+    run = meta.add_run(f"文献总数：{total} 篇（符合等级要求 {premium} 篇 / 其他 {baseline} 篇）")
     run.font.size = Pt(10)
     run.font.color.rgb = RGBColor(100, 100, 100)
-
-    doc.add_page_break()
 
     # 领域概述
     doc.add_heading("一、领域概述", level=1)
@@ -288,29 +285,8 @@ def generate_word(papers: list[dict], topic: str, date_str: str,
         doc.add_paragraph("（由 AI 在 Phase 7 根据摘要内容自动生成）")
 
     # 文献表格
-    doc.add_heading("二、文献列表", level=1)
-    table = doc.add_table(rows=1, cols=9)
-    table.style = "Light Grid Accent 1"
-    header_cells = table.rows[0].cells
-    headers = ["序号", "标题", "作者", "年份", "来源", "DOI", "期刊/会议", "引用量", "等级"]
-    for i, h in enumerate(headers):
-        header_cells[i].text = h
 
-    for i, p in enumerate(papers, 1):
-        row = table.add_row().cells
-        row[0].text = str(i)
-        row[1].text = str(p.get("title", ""))
-        row[2].text = _fmt_authors(p.get("authors"))
-        row[3].text = str(p.get("year", ""))
-        row[4].text = str(p.get("source", ""))
-        row[5].text = _fmt_doi(p.get("doi"))
-        row[6].text = _fmt_venue(p)
-        row[7].text = _fmt_citations(p.get("cited_by_count"))
-        row[8].text = _fmt_tier(p.get("tier"))
-
-    # 参考文献
-    doc.add_page_break()
-    doc.add_heading("三、参考文献", level=1)
+    doc.add_heading("二、参考文献", level=1)
     for i, p in enumerate(papers, 1):
         authors = _fmt_authors(p.get("authors"))
         title = p.get("title", "")
@@ -327,7 +303,7 @@ def generate_word(papers: list[dict], topic: str, date_str: str,
             ref_text += f" DOI: {doi}"
         doc.add_paragraph(ref_text, style="List Number")
 
-    filename = _suggest_filename(topic, date_str, ".docx")
+    filename = _suggest_filename(topic, date_str, "word")
     filepath = os.path.join(output_dir, filename)
     doc.save(filepath)
     return filepath
@@ -372,7 +348,7 @@ def main():
     # Markdown
     if args.format in ("markdown", "all"):
         md_content = generate_markdown(papers, args.topic, args.date, args.overview)
-        md_file = _suggest_filename(args.topic, args.date, ".md")
+        md_file = _suggest_filename(args.topic, args.date, "markdown")
         md_path = os.path.join(args.output_dir, md_file)
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(md_content)

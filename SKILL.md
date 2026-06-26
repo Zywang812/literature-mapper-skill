@@ -2,7 +2,7 @@
 name: literature-mapper
 description: >
   专业学术文献检索与综述助手。基于 arXiv 和 OpenAlex 双源检索，
-  采用双层策略（20 篇保底 + 30 篇精品），严格遵循 Plan 模式，
+  采用双层检索策略，严格遵循 Plan 模式，
   在关键决策点等待用户确认。当用户提到：查文献、检索论文、
   文献综述、学术论文搜索、arXiv 检索、OpenAlex 检索、
   期刊分区筛选、CCF 等级筛选、文献调研时使用。
@@ -20,13 +20,13 @@ description: >
 ## 核心策略
 
 1. **白名单驱动**：检索前从 CSV 分级表中构建期刊/会议白名单，定向抓取。
-2. **双层检索**：arXiv 保底 20 篇 + OpenAlex 精品 30 篇，兼顾数量与质量。
+2. **双源检索**：arXiv 约 20 篇（预印本覆盖）+ OpenAlex 约 30 篇（同行评审过滤），兼顾广度与精度。
 3. **Plan 模式**：标记为 **[Checkpoint]** 的步骤必须暂停等待用户确认。
 
 ## 全局规则
 
 - **来源标识**：每篇文献标注来源（arXiv / OpenAlex / Both）。
-- **合规标识**：标注"符合等级要求：是/否"（arXiv 保底文献默认为否）。
+- **合规标识**：标注"符合等级要求：是/否"（arXiv 文献默认为否）。
 - **去重规则**：优先按 DOI 去重，若无则按标题精确匹配。
 - **信息边界**：仅基于标题和摘要，严禁虚构全文内容。
 
@@ -111,39 +111,39 @@ large language model medical diagnosis
 
 ---
 
-## Phase 3: 执行检索（双层策略）
+## Phase 3: 执行检索（双源检索）
 
-### 第一层：arXiv 保底检索（保证基础数量）
+### 第一层：arXiv 检索（预印本覆盖）
 
 调用 `tools/search_arxiv.py`，仅基于 Phase 0 中提取的 keywords 和 synonyms 进行检索，不应用任何期刊/会议白名单过滤。
 
-- **目的**：确保用户获得至少 20 篇高度相关的文献作为基础阅读材料，即使这些文献可能不符合等级要求。
+- **目的**：提供当前领域的最新预印本概览，帮助用户了解前沿动态。
 - **限制**：抓取上限 30 篇，按相关性排序后取前 20 篇。
 - **输出**：20 篇 arXiv 文献（含标题、作者、年份、DOI、摘要、PDF 链接），标记为"来源：arXiv | 符合等级要求：否"。
 
-### 第二层：OpenAlex 精品检索（保证高质量）
+### 第二层：OpenAlex 检索（同行评审文献过滤）
 
 调用 `tools/search_openalex.py`，检索时应用 Phase 1 构建的期刊白名单和会议白名单，仅抓取符合用户等级/分区/领域要求的文献。
 
-- **目的**：提供 30 篇高质量、符合用户全部筛选条件的精品文献。
+- **目的**：提供约 30 篇符合用户全部筛选条件的同行评审文献。
 - **限制**：抓取上限 100 篇，应用白名单过滤后，按用户指定的排序标准排序，取前 30 篇。
-- **输出**：30 篇精品文献（含标题、作者、年份、DOI、摘要、期刊/会议、引用量、分区/等级），标记为"来源：OpenAlex | 符合等级要求：是"。
+- **输出**：30 篇文献（含标题、作者、年份、DOI、摘要、期刊/会议、引用量、分区/等级），标记为"来源：OpenAlex | 符合等级要求：是"。
 
 ### 第三层：合并与去重
 
-调用 `tools/merge_dedup.py`，将 arXiv 保底文献与 OpenAlex 精品文献合并。
+调用 `tools/merge_dedup.py`，将 arXiv 文献与 OpenAlex 文献合并。
 
 ```bash
 python tools/merge_dedup.py --arxiv arxiv_results.json --openalex openalex_results.json --output merged.json
 ```
 
-- **去重规则**：按 DOI 或标题去重。若 arXiv 文献同时存在于 OpenAlex 精品列表中，保留 OpenAlex 版本（元数据更丰富），并标记为"来源：arXiv & OpenAlex | 符合等级要求：是"。
-- **最终输出**：总计最多 50 篇文献（20 篇保底 + 30 篇精品，去重后可能少于 50 篇）。
+- **去重规则**：按 DOI 或标题去重。若同一文献同时存在于两个来源中，保留元数据更丰富的版本，并标记为"来源：arXiv & OpenAlex | 符合等级要求：是"。
+- **最终输出**：总计最多 50 篇文献（去重后可能少于 50 篇）。
 
 示例输出：
 
-> arXiv 保底检索：20 篇（均为预印本，不符合等级要求）
-> OpenAlex 精品检索：30 篇（全部符合等级要求）
+> arXiv 检索：20 篇（均为预印本，默认不符合等级要求）
+> OpenAlex 检索：30 篇（全部符合等级要求）
 > 合并去重后：共计 47 篇有效文献（3 篇重复已剔除）
 
 ---
@@ -155,7 +155,7 @@ python tools/merge_dedup.py --arxiv arxiv_results.json --openalex openalex_resul
 1. **类型推断**：根据 OpenAlex 返回的 `type` 字段（如 article / proceeding）或期刊/会议名称，自动推断每篇文献的类型（Journal / Conference）。arXiv 文献若无类型信息，标注为"Unknown"。详细推断规则见 `references/filter_rules.md`。
 2. **年份解析**：确保 `year` 字段为整数类型，若缺失则标注为"N/A"。
 3. **引用量处理**：OpenAlex 文献保留 `cited_by_count`，arXiv 文献引用量统一填 `null`。
-4. **等级回填**：调用 `tools/backfill_tier.py`，对 OpenAlex 精品文献查询本地分级表，回填其具体分区或 CCF 等级（如"中科院一区"或"CCF A 类"）。此步是 Phase 5 等级排序的数据前提。
+4. **等级回填**：调用 `tools/backfill_tier.py`，对 OpenAlex 文献查询本地分级表，回填其具体分区或 CCF 等级（如"中科院一区"或"CCF A 类"）。此步是 Phase 5 等级排序的数据前提。
 
 ```bash
 python tools/backfill_tier.py --input merged.json --output papers_tiered.json
@@ -171,7 +171,7 @@ python tools/backfill_tier.py --input merged.json --output papers_tiered.json
 
 调用 `tools/sort_papers.py`，严格按照用户在 Phase 0 中指定的排序标准，对全部 Z 篇文献进行排序，并生成 Top 20 推荐列表。
 
-- **排序规则**：三种排序标准（年份降序 / 引用量降序 / 等级降序）、权重映射及"OpenAlex 精品优先"原则详见 `references/filter_rules.md`。
+- **排序规则**：三种排序标准（年份降序 / 引用量降序 / 等级降序）、权重映射及"符合等级要求优先"原则详见 `references/filter_rules.md`。
 - **Top 20 列表格式**：每篇文献须包含的字段及 Markdown 表格模板详见 `references/output_templates.md`。
 
 ### 输出与确认
@@ -196,15 +196,27 @@ python tools/backfill_tier.py --input merged.json --output papers_tiered.json
 
 将上述信息整合，生成最终的文献综述笔记。报告格式详见 `references/output_templates.md`。
 
+### 输出文件说明
+
+三种输出格式各有分工：
+- **Word** (.docx) / **Markdown** (.md)：综述报告，包含领域概述和参考文献（GB/T 7714 格式），无文献列表表格
+- **Excel** (.xlsx)：文献信息表，包含论文完整元数据和文章链接，便于检索和筛选
+
+文件名自动按功能命名：`{topic}_文献综述.{ext}`（综述报告） / `{topic}_文献信息表.{ext}`（文献信息表）
+
 ### 格式要求
 
-- **全局概述**：基于所有摘要，写一段 150 字左右的领域现状总述。
-- **主题分组表格**：将文献按 Phase 6 的聚类分组，每组内按时间排序，列出"作者、年份、标题、DOI、核心贡献点（基于摘要提炼）"。
-- **标准引用**：每篇文献附带 GB/T 7714 格式的引用。
+Word/Markdown：
+- **全局概述**：150 字左右的领域现状总述
+- **参考文献**：GB/T 7714 格式，编号列表
+
+Excel：
+- **列**：序号 / 标题 / 作者 / 年份 / 来源 / DOI / 文章链接 / 期刊/会议 / 引用量 / 等级 / 符合等级要求 / 摘要
+- **文章链接列**：包含 DOI URL，可点击跳转
 
 ### 输出与确认
 
-暂停：生成报告后，询问用户："报告草稿已完成。是否需要调整分组逻辑，或修改引用格式（默认为 GB/T 7714）？"
+暂停：生成报告后，询问用户："报告草稿已完成。输出文件将按功能命名：Word/Markdown 为综述报告，Excel 为文献信息表。是否需要调整？"
 
 ---
 
@@ -215,7 +227,7 @@ python tools/backfill_tier.py --input merged.json --output papers_tiered.json
 > 1. **Word 文档** (.docx)  — `python tools/output_report.py --input sorted.json --format word --topic "{topic}" --date "{date}"`
 > 2. **Markdown 文档** (.md) — `python tools/output_report.py --input sorted.json --format markdown --topic "{topic}" --date "{date}"`
 > 3. **Excel 摘要表** (.xlsx) — `python tools/output_report.py --input sorted.json --format excel --topic "{topic}" --date "{date}"`
-> 4. **全部三种** — `python tools/output_report.py --input sorted.json --format all --topic "{topic}" --date "{date}"`
+> 4. **全部三种格式** — `python tools/output_report.py --input sorted.json --format all --topic "{topic}" --date "{date}"`
 
 > Word/Markdown 可加 `--overview` 参数传入领域概述文本。三种输出格式的完整模板约定见 `references/output_templates.md`。
 ---
@@ -225,7 +237,7 @@ python tools/backfill_tier.py --input merged.json --output papers_tiered.json
 | 工具名称 | 功能描述 | 输入 | 输出 |
 |---|---|---|---|
 | `tools/build_whitelist.py` | 根据用户条件从 CSV 分级表中构建期刊/会议白名单 | `filters.json`（含文献类型、分区、CCF 等级） | `journal_whitelist` + `conference_whitelist` + 统计摘要 |
-| `tools/search_arxiv.py` | 调用 arXiv 官方 API 检索预印本，不应用白名单过滤 | `keywords`（关键词列表）, `max_results=30` | 20 篇 arXiv 文献（标题、作者、年份、DOI、摘要、PDF 链接） |
+| `tools/search_arxiv.py` | 调用 arXiv API 检索预印本，不应用白名单过滤 | `keywords`（关键词列表）, `max_results=30` | 20 篇 arXiv 文献（标题、作者、年份、DOI、摘要、PDF 链接） |
 | `tools/search_openalex.py` | 调用 OpenAlex API 检索学术文献，应用白名单过滤（cursor 分页） | `keywords`（关键词列表）, `per_page=100`, `return_count=30`, `max_pages=5`, `journal_whitelist`, `conference_whitelist` | 30 篇符合白名单要求的文献（标题、作者、年份、DOI、摘要、期刊/会议、引用量） |
 | `tools/merge_dedup.py` | 合并 arXiv 与 OpenAlex 文献并按 DOI/标题去重 | `--arxiv`（arXiv 结果）, `--openalex`（OpenAlex 结果） | 去重后的合并文献列表 + 统计信息 |
 | `tools/backfill_tier.py` | 查询本地分级表为文献回填等级（中科院分区 / CCF 等级） | `papers.json`（合并后的文献列表） | 回填 `tier` 字段后的文献列表 + 统计信息 |

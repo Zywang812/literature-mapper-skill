@@ -2,7 +2,7 @@
 sort_papers.py - 按用户指定标准对文献列表排序
 
 排序规则详见 references/filter_rules.md：
-- 精品优先：OpenAlex 合规文献始终排在 arXiv 保底文献之前
+- 合规优先：符合等级要求的文献始终排在其他文献之前
 - 三种排序标准：year（年份降序）/ citations（引用量降序）/ tier（等级降序）
 - 同组内 null 值排在末尾
 
@@ -86,7 +86,7 @@ def sort_papers(papers: list[dict], sort_by: str) -> list[dict]:
     """
     对文献列表排序。
 
-    核心原则：先按合规性分组（精品在前、保底在后），
+    核心原则：先按合规性分组（符合等级要求的在前、其他的在后），
     各组内再按用户指定标准排序。
 
     Args:
@@ -106,16 +106,16 @@ def sort_papers(papers: list[dict], sort_by: str) -> list[dict]:
         raise ValueError(f"不支持的排序标准: {sort_by}（可选: year/citations/tier）")
     key_fn = key_map[sort_by]
 
-    # 精品优先：compliant=True 在前，False 在后
+    # 符合等级要求优先：compliant=True 在前，False 在后
     # 各组内按用户指定标准降序排序，再拼接
-    premium = [p for p in papers if p.get("compliant")]
-    baseline = [p for p in papers if not p.get("compliant")]
+    compliant_papers = [p for p in papers if p.get("compliant")]
+    others = [p for p in papers if not p.get("compliant")]
 
     # 各组内按指定标准降序
-    premium.sort(key=key_fn, reverse=True)
-    baseline.sort(key=key_fn, reverse=True)
+    compliant_papers.sort(key=key_fn, reverse=True)
+    others.sort(key=key_fn, reverse=True)
 
-    return premium + baseline
+    return compliant_papers + others
 
 
 def main():

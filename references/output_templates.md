@@ -11,7 +11,7 @@
 ```markdown
 ## Top 20 推荐文献
 
-> 排序标准：{sort_by} | 精品文献优先排列
+> 排序标准：{sort_by} | 符合等级要求者优先排列
 
 | 序号 | 标题 | 作者 | 年份 | 来源 | DOI | 引用量 | 符合等级 | 等级 |
 |---|---|---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@
 | ... | ... | ... | ... | ... | ... | ... | ... | ... |
 | 20 | {title} | {authors} | {year} | {source} | {doi} | {citations} | {compliant} | {tier} |
 
-**统计**：共 {total_count} 篇文献，其中精品文献 {premium_count} 篇，保底文献 {baseline_count} 篇。
+**统计**：共 {total_count} 篇文献，其中符合等级要求的文献 {premium_count} 篇，其他文献 {baseline_count} 篇。
 ```
 
 ### 字段说明
@@ -129,7 +129,7 @@
 
 ---
 
-## 三、参考文献
+## 二、参考文献
 
 1. {authors}. {title}[{type}]. {venue}, {year}. DOI: {doi}
 2. {authors}. {title}[{type}]. {venue}, {year}. DOI: {doi}
@@ -180,7 +180,7 @@
 
 > 检索时间：{date}
 > 数据来源：arXiv + OpenAlex
-> 文献总数：{total} 篇（精品 {premium} 篇 / 保底 {baseline} 篇）
+> 文献总数：{total} 篇（符合等级要求 {premium} 篇 / 其他 {baseline} 篇）
 
 ---
 
@@ -199,7 +199,7 @@
 
 ---
 
-## 三、参考文献
+## 二、参考文献
 
 1. {authors}. {title}[J/{C}]. {venue}, {year}. DOI: {doi}
 2. ...
@@ -210,7 +210,7 @@
 |---|---|
 | research_topic | 用户的研究主题 |
 | date | 报告日期，格式 YYYY-MM-DD |
-| total / premium / baseline | 文献统计：总数 / 精品数 / 保底数 |
+| total / premium / baseline | 文献统计：总数 / 符合等级要求的文献数 / 其他文献数 |
 | overview_text | 约 150 字的领域现状总述 |
 | title | 文献标题 |
 | authors | 前 3 位作者，超过用"等"省略 |
@@ -231,11 +231,9 @@
 **页面结构：**
 1. **封面页**：标题居中，下方附检索时间、数据来源、文献总数等元信息
 2. **领域概述**：一级标题"一、领域概述"，正文段落概述
-3. **文献列表**：一级标题"二、文献列表"，含 9 列表格（序号 / 标题 / 作者 / 年份 / 来源 / DOI / 期刊会议 / 引用量 / 等级）
-4. **参考文献**：一级标题"三、参考文献"，编号列表，GB/T 7714 格式
+3. **参考文献**：一级标题"二、参考文献"，编号列表，GB/T 7714 格式
 
 **排版规则：**
-- 表格使用 "Light Grid Accent 1" 样式
 - 参考文献使用 List Number 样式自动编号
 - 元信息用 10pt 灰色字体
 - 所有中文字体默认使用文档默认字体
@@ -275,3 +273,8 @@
 ```bash
 python tools/output_report.py --input <papers.json> --format <markdown|excel|word|all> --topic <string> --date <YYYY-MM-DD> --overview <text> --output-dir <path>
 ```
+
+
+**文件命名约定 / File Naming Convention**
+- **Word / Markdown**\uff1a{topic}_文献综述_{date}.docx / .md\uff08综述报告 / Survey Report\uff09
+- **Excel**\uff1a{topic}_文献信息表_{date}.xlsx\uff08文献信息表 / Paper List\uff09

@@ -95,7 +95,7 @@ def search_papers(query: str, max_results: int = 30, return_count: int = 20) -> 
             "abstract": result.summary.replace("\n", " ").strip() if result.summary else "",
             "pdf_url": str(result.pdf_url) if result.pdf_url else None,
             "source": "arXiv",
-            "compliant": False,  # arXiv 保底文献默认不符合等级要求
+            "compliant": False,  # arXiv 文献默认不符合等级要求
             "tier": None,
             "cited_by_count": None,
             "type": "Unknown",
